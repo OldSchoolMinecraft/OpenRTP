@@ -68,12 +68,19 @@ public class OpenRTP extends JavaPlugin
                 long timeElapsed = currentTime - lastUsedTime;
                 long timeLeft = commandCooldown - timeElapsed;
 
-                if (timeLeft > 0 && !(ply.hasPermission("openrtp.admin") || ply.isOp()))
-                {
+                if (timeLeft > 0) {
                     long seconds = (timeLeft / 1000) % 60;
                     long minutes = (timeLeft / (1000 * 60)) % 60;
+                    long hours = (timeLeft / (1000 * 60 * 60)) % 24;
+                    long days = timeLeft / (1000 * 60 * 60 * 24);
 
-                    String waitTime = minutes + " minute(s) " + seconds + " second(s)";
+                    StringBuilder waitTime = new StringBuilder();
+
+                    if (days > 0) waitTime.append(days).append(days == 1 ? " day " : " days ");
+                    if (hours > 0) waitTime.append(hours).append(hours == 1 ? " hour " : " hours ");
+                    if (minutes > 0) waitTime.append(minutes).append(minutes == 1 ? " minute " : " minutes ");
+                    if (seconds > 0) waitTime.append(seconds).append(seconds == 1 ? " second" : " seconds");
+
                     ply.sendMessage(ChatColor.RED + "You need to wait: " + ChatColor.YELLOW + waitTime + ChatColor.RED + " before you can randomly teleport again.");
                     return true;
                 }
