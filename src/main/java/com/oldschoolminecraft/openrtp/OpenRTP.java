@@ -68,7 +68,7 @@ public class OpenRTP extends JavaPlugin
                 long timeElapsed = currentTime - lastUsedTime;
                 long timeLeft = commandCooldown - timeElapsed;
 
-                if (timeLeft > 0)
+                if (timeLeft > 0 && !(ply.hasPermission("openrtp.admin") || ply.isOp()))
                 {
                     long seconds = (timeLeft / 1000) % 60;
                     long minutes = (timeLeft / (1000 * 60)) % 60;
