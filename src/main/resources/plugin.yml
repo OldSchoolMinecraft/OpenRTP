@@ -1,0 +1,11 @@
+name: OpenRTP
+version: 1.0
+author: moderator_man
+main: com.oldschoolminecraft.openrtp.OpenRTP
+commands:
+  wild:
+    description: Teleport to a random location.
+  openrtp:
+    description: OpenRTP
+    permission: openrtp.admin
+    default: op
