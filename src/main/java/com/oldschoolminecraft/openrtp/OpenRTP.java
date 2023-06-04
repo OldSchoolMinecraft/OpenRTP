@@ -94,7 +94,7 @@ public class OpenRTP extends JavaPlugin
                 {
                     boolean alreadyHasGodMode = user.isGodModeEnabled();
                     user.setGodModeEnabled(true);
-                    teleportMsg += " You are now temporarily immortal.";
+                    if (!alreadyHasGodMode) teleportMsg += " You are now temporarily immortal.";
 
                     getServer().getScheduler().scheduleSyncDelayedTask(this, () ->
                     {
