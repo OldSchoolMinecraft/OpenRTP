@@ -13,10 +13,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Random;
@@ -68,7 +65,8 @@ public class OpenRTP extends JavaPlugin
                 long timeElapsed = currentTime - lastUsedTime;
                 long timeLeft = commandCooldown - timeElapsed;
 
-                if (timeLeft > 0) {
+                if (timeLeft > 0 && !(ply.hasPermission("openrtp.admin") || ply.isOp()))
+                {
                     long seconds = (timeLeft / 1000) % 60;
                     long minutes = (timeLeft / (1000 * 60)) % 60;
                     long hours = (timeLeft / (1000 * 60 * 60)) % 24;
@@ -81,7 +79,7 @@ public class OpenRTP extends JavaPlugin
                     if (minutes > 0) waitTime.append(minutes).append(minutes == 1 ? " minute " : " minutes ");
                     if (seconds > 0) waitTime.append(seconds).append(seconds == 1 ? " second" : " seconds");
 
-                    ply.sendMessage(ChatColor.RED + "You need to wait: " + ChatColor.YELLOW + waitTime + ChatColor.RED + " before you can randomly teleport again.");
+                    ply.sendMessage(ChatColor.RED + "You need to wait: " + ChatColor.YELLOW + waitTime.toString().trim() + ChatColor.RED + " before you can randomly teleport again.");
                     return true;
                 }
 
@@ -120,6 +118,7 @@ public class OpenRTP extends JavaPlugin
 
                 ply.sendMessage(teleportMsg);
                 ply.teleport(safeRandLocation);
+                saveLastCommandUsage(ply.getName(), System.currentTimeMillis());
             } catch (Exception e) {
                 sender.sendMessage(ChatColor.RED + "That location is unsafe! You will not be teleported. Please try again.");
             }
@@ -157,6 +156,7 @@ public class OpenRTP extends JavaPlugin
     private long getLastCommandUsage(String username) throws IOException
     {
         File dataDir = new File(getDataFolder(), "data/");
+        if (!dataDir.exists()) dataDir.mkdirs();
         File dataFile = new File(dataDir, username + ".json");
         // if file doesn't exist, return a timestamp 24 hours in the past so that the check passes
         if (!dataFile.exists()) return Instant.now().minus(24, ChronoUnit.HOURS).toEpochMilli();
@@ -164,6 +164,19 @@ public class OpenRTP extends JavaPlugin
         {
             JsonObject data = gson.fromJson(reader, JsonObject.class);
             return data.get("lastRTP").getAsLong();
+        }
+    }
+
+    private void saveLastCommandUsage(String username, long timestamp) throws IOException
+    {
+        File dataDir = new File(getDataFolder(), "data/");
+        if (!dataDir.exists()) dataDir.mkdirs();
+        File dataFile = new File(dataDir, username + ".json");
+        try (FileWriter writer = new FileWriter(dataFile))
+        {
+            JsonObject data = new JsonObject();
+            data.addProperty("lastRTP", timestamp);
+            gson.toJson(data, writer);
         }
     }
 
