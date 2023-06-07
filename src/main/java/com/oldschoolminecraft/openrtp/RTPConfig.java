@@ -24,10 +24,9 @@ public class RTPConfig extends Configuration
         generateConfigOption("range_min", -60000);
         generateConfigOption("range_max", 60000);
         generateConfigOption("command_cooldown", "4h"); // use essentials time format/parsing
-        generateConfigOption("immortality_duration", "5s"); // use essentials time format/parsing
+        generateConfigOption("immortality_duration", "10s"); // use essentials time format/parsing
         generateConfigOption("immortality_enabled", true);
-        generateConfigOption("safety_iterations", 5);
-        generateConfigOption("autohome_delay", "5s");
+        generateConfigOption("autohome_delay", "10s");
         generateConfigOption("autohome_enabled", true);
     }
 

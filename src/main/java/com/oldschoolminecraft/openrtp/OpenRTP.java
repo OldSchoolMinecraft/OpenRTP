@@ -5,19 +5,19 @@ import com.earth2me.essentials.User;
 import com.earth2me.essentials.Util;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
+import net.minecraft.server.Packet13PlayerLookMove;
+import org.bukkit.*;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandException;
 import org.bukkit.command.CommandSender;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 public class OpenRTP extends JavaPlugin
 {
@@ -32,6 +32,8 @@ public class OpenRTP extends JavaPlugin
         essentials = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         rng = new Random();
         config = new RTPConfig(new File(getDataFolder(), "config.yml"));
+
+        getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
 
         System.out.println("OpenRTP enabled");
     }
@@ -49,53 +51,70 @@ public class OpenRTP extends JavaPlugin
 
             Player ply = (Player) sender;
 
+            boolean immortality_enabled = config.getConfigBoolean("immortality_enabled");
+            boolean autohome_enabled = config.getConfigBoolean("autohome_enabled");
+            long immortalityDuration = timeToTicks(config.getConfigString("immortality_duration"));
+            long autohomeDelay = timeToTicks(config.getConfigString("autohome_delay"));
+            long commandCooldown = timeToMillis(config.getConfigString("command_cooldown"));
+            long lastUsedTime; // default
+
             try
             {
-                boolean immortality_enabled = config.getConfigBoolean("immortality_enabled");
-                boolean autohome_enabled = config.getConfigBoolean("autohome_enabled");
-                long immortalityDuration = timeToTicks(config.getConfigString("immortality_duration"));
-                long autohomeDelay = timeToTicks(config.getConfigString("autohome_delay"));
-                long commandCooldown = timeToMillis(config.getConfigString("command_cooldown"));
-                long lastUsedTime = getLastCommandUsage(ply.getName());
-                double range_min = config.getConfigDouble("range_min");
-                double range_max = config.getConfigDouble("range_max");
-                int safety_iterations = config.getConfigInteger("safety_iterations");
+                lastUsedTime = getLastCommandUsage(ply.getName());
+            } catch (Exception ex) {
+                ply.sendMessage(ChatColor.RED + "An error occurred. Please try again later.");
+                return true;
+            }
 
-                long currentTime = System.currentTimeMillis();
-                long timeElapsed = currentTime - lastUsedTime;
-                long timeLeft = commandCooldown - timeElapsed;
+            long currentTime = System.currentTimeMillis();
+            long timeElapsed = currentTime - lastUsedTime;
+            long timeLeft = commandCooldown - timeElapsed;
 
-                if (timeLeft > 0 && !(ply.hasPermission("openrtp.admin") || ply.isOp()))
+            if (timeLeft > 0 && !(ply.hasPermission("openrtp.admin") || ply.isOp()))
+            {
+                long seconds = (timeLeft / 1000) % 60;
+                long minutes = (timeLeft / (1000 * 60)) % 60;
+                long hours = (timeLeft / (1000 * 60 * 60)) % 24;
+                long days = timeLeft / (1000 * 60 * 60 * 24);
+
+                StringBuilder waitTime = new StringBuilder();
+
+                if (days > 0) waitTime.append(days).append(days == 1 ? " day " : " days ");
+                if (hours > 0) waitTime.append(hours).append(hours == 1 ? " hour " : " hours ");
+                if (minutes > 0) waitTime.append(minutes).append(minutes == 1 ? " minute " : " minutes ");
+                if (seconds > 0) waitTime.append(seconds).append(seconds == 1 ? " second" : " seconds");
+
+                ply.sendMessage(ChatColor.RED + "You need to wait: " + ChatColor.YELLOW + waitTime.toString().trim() + ChatColor.RED + " before you can randomly teleport again.");
+                return true;
+            }
+
+            String teleportMsg = ChatColor.GREEN + "You are about to be randomly teleported...";
+            User user = essentials.getOfflineUser(ply.getName());
+
+            boolean alreadyHasGodMode = user.isGodModeEnabled();
+            if (immortality_enabled)
+            {
+                user.setGodModeEnabled(true);
+                if (!alreadyHasGodMode) teleportMsg += " You are now temporarily immortal.";
+            }
+
+            ply.sendMessage(teleportMsg);
+
+            LocationFinder locationFinder = new LocationFinder(config, ply.getWorld(), (loc) ->
+            {
+                try
                 {
-                    long seconds = (timeLeft / 1000) % 60;
-                    long minutes = (timeLeft / (1000 * 60)) % 60;
-                    long hours = (timeLeft / (1000 * 60 * 60)) % 24;
-                    long days = timeLeft / (1000 * 60 * 60 * 24);
-
-                    StringBuilder waitTime = new StringBuilder();
-
-                    if (days > 0) waitTime.append(days).append(days == 1 ? " day " : " days ");
-                    if (hours > 0) waitTime.append(hours).append(hours == 1 ? " hour " : " hours ");
-                    if (minutes > 0) waitTime.append(minutes).append(minutes == 1 ? " minute " : " minutes ");
-                    if (seconds > 0) waitTime.append(seconds).append(seconds == 1 ? " second" : " seconds");
-
-                    ply.sendMessage(ChatColor.RED + "You need to wait: " + ChatColor.YELLOW + waitTime.toString().trim() + ChatColor.RED + " before you can randomly teleport again.");
-                    return true;
+                    saveLastCommandUsage(ply.getName(), System.currentTimeMillis());
+                } catch (Exception ex) {
+                    ply.sendMessage(ChatColor.RED + "An error occurred. Please try again later.");
+                    return;
                 }
 
-                Location randLocation = new Location(ply.getWorld(), generateRandomDouble(range_min, range_max), 70 + generateRandomDouble(-15, 30), generateRandomDouble(range_min, range_max));
-                Location safeRandLocation = Util.getSafeDestination(randLocation);
-                for (int i = 0; i < safety_iterations; i++) // this may not be completely necessary, however it ought to increase the chances of the destination being safe at least.
-                    safeRandLocation = Util.getSafeDestination(safeRandLocation);
-                User user = essentials.getOfflineUser(ply.getName());
-                String teleportMsg = ChatColor.GREEN + "You are about to be randomly teleported...";
+                System.out.println("[OpenRTP] Teleporting " + ply.getName() + " to random location: " + loc);
+                ply.teleport(loc);
 
                 if (immortality_enabled)
                 {
-                    boolean alreadyHasGodMode = user.isGodModeEnabled();
-                    user.setGodModeEnabled(true);
-                    if (!alreadyHasGodMode) teleportMsg += " You are now temporarily immortal.";
-
                     getServer().getScheduler().scheduleSyncDelayedTask(this, () ->
                     {
                         if (!alreadyHasGodMode)
@@ -115,13 +134,9 @@ public class OpenRTP extends JavaPlugin
                         ply.sendMessage(ChatColor.YELLOW + "You can delete it with: " + ChatColor.RED + "/delhome wild_tp.");
                     }, autohomeDelay);
                 }
+            });
 
-                ply.sendMessage(teleportMsg);
-                ply.teleport(safeRandLocation);
-                saveLastCommandUsage(ply.getName(), System.currentTimeMillis());
-            } catch (Exception e) {
-                sender.sendMessage(ChatColor.RED + "That location is unsafe! You will not be teleported. Please try again.");
-            }
+            locationFinder.start();
 
             return true;
         }
@@ -228,11 +243,6 @@ public class OpenRTP extends JavaPlugin
         }
 
         return Long.parseLong(value) * multiplier;
-    }
-
-    private double generateRandomDouble(double min, double max)
-    {
-        return min + (max - min) * rng.nextDouble();
     }
 
     public void onDisable()
