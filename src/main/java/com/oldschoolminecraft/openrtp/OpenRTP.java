@@ -2,21 +2,17 @@ package com.oldschoolminecraft.openrtp;
 
 import com.earth2me.essentials.Essentials;
 import com.earth2me.essentials.User;
-import com.earth2me.essentials.Util;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import net.minecraft.server.Packet13PlayerLookMove;
 import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.Random;
 
 public class OpenRTP extends JavaPlugin
@@ -33,8 +29,6 @@ public class OpenRTP extends JavaPlugin
         rng = new Random();
         config = new RTPConfig(new File(getDataFolder(), "config.yml"));
 
-        getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
-
         System.out.println("OpenRTP enabled");
     }
 
@@ -50,6 +44,12 @@ public class OpenRTP extends JavaPlugin
             }
 
             Player ply = (Player) sender;
+
+            if (ply.isSleeping() || ply.isInsideVehicle())
+            {
+                ply.sendMessage(ChatColor.RED + "You need to be standing.");
+                return true;
+            }
 
             boolean immortality_enabled = config.getConfigBoolean("immortality_enabled");
             boolean autohome_enabled = config.getConfigBoolean("autohome_enabled");
