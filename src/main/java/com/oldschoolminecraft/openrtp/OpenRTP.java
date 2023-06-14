@@ -28,6 +28,8 @@ public class OpenRTP extends JavaPlugin
         essentials = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         rng = new Random();
         config = new RTPConfig(new File(getDataFolder(), "config.yml"));
+        if (config.getConfigBoolean("debug"))
+            getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
 
         System.out.println("OpenRTP enabled");
     }
