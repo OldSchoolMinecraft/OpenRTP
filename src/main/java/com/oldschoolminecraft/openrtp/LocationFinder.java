@@ -3,7 +3,9 @@ package com.oldschoolminecraft.openrtp;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.craftbukkit.block.CraftBlock;
 
+import java.util.ArrayList;
 import java.util.Random;
 
 public class LocationFinder extends Thread
@@ -16,6 +18,7 @@ public class LocationFinder extends Thread
     private final double range_min, range_max;
 
     private Location location;
+    private ArrayList<SafetyCheck> safetyChecks = new ArrayList<>();
 
     public LocationFinder(RTPConfig config, World world, LocationCallback callback)
     {
@@ -23,6 +26,34 @@ public class LocationFinder extends Thread
         this.callback = callback;
         range_min = config.getConfigDouble("range_min");
         range_max = config.getConfigDouble("range_max");
+
+        // check if they are on top of solid ground
+        safetyChecks.add((loc) -> !isBlockEmpty(loc.clone().subtract(0, 1, 0)));
+        // check if there's fire
+        safetyChecks.add((loc) -> loc.getBlock().getType() != Material.FIRE && loc.clone().add(0, 1, 0).getBlock().getType() != Material.FIRE);
+        // check to see if the surrounding columns are also empty, to ensure they don't clip into blocks
+        safetyChecks.add((loc) ->
+                        canPlayerFit(loc) &&
+                        canPlayerFit(loc.clone().add(1, 0, 0)) &&
+                        canPlayerFit(loc.clone().subtract(1, 0, 0)) &&
+                        canPlayerFit(loc.clone().add(0, 0, 1)) &&
+                        canPlayerFit(loc.clone().subtract(0, 0, 1)) &&
+                        canPlayerFit(loc.clone().add(1, 0, 1)) &&
+                        canPlayerFit(loc.clone().subtract(1, 0, 1)));
+        // check if location has lava at, above, or below
+        safetyChecks.add((loc) -> loc.clone().add(0, 1, 0).getBlock().getType() != Material.LAVA &&
+                loc.clone().add(0, 1, 0).getBlock().getType() != Material.STATIONARY_LAVA &&
+                loc.clone().subtract(0, 1, 0).getBlock().getType() != Material.LAVA &&
+                loc.clone().subtract(0, 1, 0).getBlock().getType() != Material.STATIONARY_LAVA &&
+                loc.getBlock().getType() != Material.LAVA &&
+                loc.getBlock().getType() != Material.STATIONARY_LAVA);
+        // check if location has water at, above, or below
+        safetyChecks.add((loc) -> loc.clone().add(0, 1, 0).getBlock().getType() != Material.WATER &&
+                loc.clone().add(0, 1, 0).getBlock().getType() != Material.STATIONARY_WATER &&
+                loc.clone().subtract(0, 1, 0).getBlock().getType() != Material.WATER &&
+                loc.clone().subtract(0, 1, 0).getBlock().getType() != Material.STATIONARY_WATER &&
+                loc.getBlock().getType() != Material.WATER &&
+                loc.getBlock().getType() != Material.STATIONARY_WATER);
     }
 
     public void run()
@@ -32,8 +63,9 @@ public class LocationFinder extends Thread
             try
             {
                 Location tmp = getRandomizedLocation(world, range_min, range_max);
-                if (isSafeLocation(tmp))
+                if (runSafetyChecks(tmp))
                 {
+
                     location = tmp.clone();
                     location.setX(Math.round(tmp.getX()) + 0.5);
                     location.setZ(Math.round(tmp.getZ()) + 0.5);
@@ -41,13 +73,26 @@ public class LocationFinder extends Thread
             } catch (Exception ignored) {}
         }
 
+        location.getWorld().loadChunk(location.getWorld().getChunkAt(location));
         callback.pipe(location);
     }
 
-    private static boolean isSafeLocation(Location location)
+    private boolean runSafetyChecks(Location location)
+    {
+        int checksPassed = 0;
+        for (SafetyCheck check : safetyChecks) if (check.isSafe(location)) checksPassed++;
+        return checksPassed == safetyChecks.size();
+    }
+
+    private boolean canPlayerFit(Location loc)
+    {
+        return isBlockEmpty(loc) && isBlockEmpty(loc.clone().add(0, 1, 0));
+    }
+
+    private boolean isSafeLocation(Location location)
     {
         //        System.out.println("Is location SAFE? " + (flag ? "Yes" : "No") + " (" + location + ")");
-        return location.getBlock().isEmpty()
+        return isBlockEmpty(location)
                 && onSolidGround(location)
                 && !hasFire(location)
                 && !hasWater(location)
@@ -55,13 +100,13 @@ public class LocationFinder extends Thread
                 && !insideSolidBlocks(location);
     }
 
-    private static boolean insideSolidBlocks(Location location)
+    private boolean insideSolidBlocks(Location location)
     {
         //        System.out.println("Location inside solid block? " + (flag ? "Yes" : "No") + " (" + location + ")");
-        return !location.getBlock().isEmpty() || !location.clone().add(0, 1, 0).getBlock().isEmpty();
+        return !isBlockEmpty(location) || !isBlockEmpty(location.clone().add(0, 1, 0));
     }
 
-    private static boolean hasWater(Location location)
+    private boolean hasWater(Location location)
     {
         Location aboveLocation = location.clone().add(0, 1, 0);
         Location belowLocation = location.clone().subtract(0, 1, 0);
@@ -73,7 +118,7 @@ public class LocationFinder extends Thread
                 || belowLocation.getBlock().getType() == Material.STATIONARY_WATER;
     }
 
-    private static boolean hasLava(Location location)
+    private boolean hasLava(Location location)
     {
         Location aboveLocation = location.clone().add(0, 1, 0);
         Location belowLocation = location.clone().subtract(0, 1, 0);
@@ -86,7 +131,7 @@ public class LocationFinder extends Thread
                 || belowLocation.getBlock().getType() == Material.STATIONARY_LAVA;
     }
 
-    private static boolean hasFire(Location location)
+    private boolean hasFire(Location location)
     {
         Location aboveLocation = location.clone().add(0, 1, 0);
         Location belowLocation = location.clone().subtract(0, 1, 0);
@@ -94,21 +139,27 @@ public class LocationFinder extends Thread
         return location.getBlock().getType() == Material.FIRE && aboveLocation.getBlock().getType() == Material.FIRE && belowLocation.getBlock().getType() == Material.FIRE;
     }
 
-    private static boolean onSolidGround(Location location)
+    private boolean onSolidGround(Location location)
     {
         // Check if there is solid ground below the given location
         Location belowLocation = location.clone().subtract(0, 1, 0);
         //        System.out.println("Location on solid ground? " + (flag ? "Yes" : "No") + " (" + location + ")");
-        return !belowLocation.getBlock().isLiquid() && !belowLocation.getBlock().isEmpty();
+        return !belowLocation.getBlock().isLiquid() && !isBlockEmpty(belowLocation);
     }
 
     private Location getRandomizedLocation(World world, double range_min, double range_max)
     {
-        return new Location(world, generateRandomDouble(range_min, range_max), Math.round(70 + generateRandomDouble(0, 58)) + 0.63, generateRandomDouble(range_min, range_max));
+        double magic = 0.62000000476837D;
+        return new Location(world, generateRandomDouble(range_min, range_max), Math.round(70 + generateRandomDouble(0, 58)) + magic, generateRandomDouble(range_min, range_max));
     }
 
     private double generateRandomDouble(double min, double max)
     {
-        return Math.round(min + (max - min) * rng.nextDouble()) + 0.5D;
+        return Math.round(min + (max - min) * rng.nextDouble());
+    }
+
+    private boolean isBlockEmpty(Location loc)
+    {
+        return loc.getBlock().getType() == Material.AIR && loc.getBlock().getType() != Material.LEAVES;
     }
 }
