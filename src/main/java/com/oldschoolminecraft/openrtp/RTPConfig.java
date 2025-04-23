@@ -3,6 +3,7 @@ package com.oldschoolminecraft.openrtp;
 import org.bukkit.util.config.Configuration;
 
 import java.io.File;
+import java.util.Arrays;
 
 public class RTPConfig extends Configuration
 {
@@ -28,6 +29,8 @@ public class RTPConfig extends Configuration
         generateConfigOption("immortality_enabled", true);
         generateConfigOption("autohome_delay", "10s");
         generateConfigOption("autohome_enabled", true);
+
+        generateConfigOption("permission_cooldowns", Arrays.asList("one.example.permission:4h", "another.example.permission:4h"));
     }
 
     private void generateConfigOption(String key, Object defaultValue)
