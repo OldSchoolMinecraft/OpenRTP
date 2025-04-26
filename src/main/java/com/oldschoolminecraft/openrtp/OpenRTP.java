@@ -13,6 +13,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class OpenRTP extends JavaPlugin
@@ -28,8 +30,6 @@ public class OpenRTP extends JavaPlugin
         essentials = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         rng = new Random();
         config = new RTPConfig(new File(getDataFolder(), "config.yml"));
-        if (config.getConfigBoolean("debug"))
-            getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
 
         System.out.println("OpenRTP enabled");
     }
@@ -57,7 +57,7 @@ public class OpenRTP extends JavaPlugin
             boolean autohome_enabled = config.getConfigBoolean("autohome_enabled");
             long immortalityDuration = timeToTicks(config.getConfigString("immortality_duration"));
             long autohomeDelay = timeToTicks(config.getConfigString("autohome_delay"));
-            long commandCooldown = timeToMillis(config.getConfigString("command_cooldown"));
+            long commandCooldown = timeToMillis(getShortestCooldown(ply));
             long lastUsedTime; // default
 
             try
@@ -168,6 +168,34 @@ public class OpenRTP extends JavaPlugin
         }
 
         return false;
+    }
+
+    private String getShortestCooldown(Player player)
+    {
+        List<String> permission_cooldowns = config.getStringList("permission_cooldowns", new ArrayList<>());
+        long shortest = Long.MAX_VALUE;
+        String shortestCooldownStr = config.getString("command_cooldown", "4h");
+
+        for (String entry : permission_cooldowns)
+        {
+            String[] parts = entry.split(":");
+            if (parts.length != 2) continue;
+
+            String permission = parts[0];
+            String cooldownStr = parts[1];
+
+            if (player.hasPermission(permission))
+            {
+                long millis = timeToMillis(cooldownStr);
+                if (millis < shortest)
+                {
+                    shortest = millis;
+                    shortestCooldownStr = cooldownStr;
+                }
+            }
+        }
+
+        return shortestCooldownStr;
     }
 
     private long getLastCommandUsage(String username) throws IOException
