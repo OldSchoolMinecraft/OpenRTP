@@ -1,4 +1,4 @@
-package com.oldschoolminecraft.openrtp.util;
+package com.oldschoolminecraft.openrtp;
 
 import org.bukkit.Location;
 

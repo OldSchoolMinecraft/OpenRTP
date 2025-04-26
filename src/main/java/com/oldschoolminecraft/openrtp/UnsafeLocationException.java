@@ -1,4 +1,4 @@
-package com.oldschoolminecraft.openrtp.util;
+package com.oldschoolminecraft.openrtp;
 
 public class UnsafeLocationException extends Exception
 {

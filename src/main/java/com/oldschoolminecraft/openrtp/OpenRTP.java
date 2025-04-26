@@ -4,13 +4,9 @@ import com.earth2me.essentials.Essentials;
 import com.earth2me.essentials.User;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.oldschoolminecraft.openrtp.debug.PlayerHandler;
-import com.oldschoolminecraft.openrtp.util.LocationFinder;
-import net.minecraft.server.*;
 import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -32,7 +28,8 @@ public class OpenRTP extends JavaPlugin
         essentials = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         rng = new Random();
         config = new RTPConfig(new File(getDataFolder(), "config.yml"));
-        getServer().getPluginManager().registerEvents(new PlayerHandler(this), this);
+        if (config.getConfigBoolean("debug"))
+            getServer().getPluginManager().registerEvents(new PlayerHandler(), this);
 
         System.out.println("OpenRTP enabled");
     }
@@ -94,10 +91,10 @@ public class OpenRTP extends JavaPlugin
             }
 
             String teleportMsg = ChatColor.GREEN + "You are about to be randomly teleported...";
-            User user = tryLoadUser(ply.getName());
+            User user = essentials.getOfflineUser(ply.getName());
 
-            boolean alreadyHasGodMode = (user != null) && user.isGodModeEnabled();
-            if (immortality_enabled && user != null)
+            boolean alreadyHasGodMode = user.isGodModeEnabled();
+            if (immortality_enabled)
             {
                 user.setGodModeEnabled(true);
                 if (!alreadyHasGodMode) teleportMsg += " You are now temporarily immortal.";
@@ -115,11 +112,12 @@ public class OpenRTP extends JavaPlugin
                     return;
                 }
 
+                System.out.println("[OpenRTP] Teleporting " + ply.getName() + " to random location: " + loc);
                 ply.teleport(loc);
 
-                if (immortality_enabled && user != null)
+                if (immortality_enabled)
                 {
-                    getServer().getScheduler().scheduleAsyncDelayedTask(this, () ->
+                    getServer().getScheduler().scheduleSyncDelayedTask(this, () ->
                     {
                         if (!alreadyHasGodMode)
                         {
@@ -129,9 +127,9 @@ public class OpenRTP extends JavaPlugin
                     }, immortalityDuration);
                 }
 
-                if (autohome_enabled && user != null)
+                if (autohome_enabled)
                 {
-                    getServer().getScheduler().scheduleAsyncDelayedTask(this, () ->
+                    getServer().getScheduler().scheduleSyncDelayedTask(this, () ->
                     {
                         user.setHome("wild_tp", ply.getLocation());
                         ply.sendMessage(ChatColor.YELLOW + "A home has been set for you: " + ChatColor.GREEN + "wild_tp.");
@@ -170,15 +168,6 @@ public class OpenRTP extends JavaPlugin
         }
 
         return false;
-    }
-
-    public User tryLoadUser(String name)
-    {
-        try
-        {
-            return essentials.getOfflineUser(name);
-        } catch (Exception ignored) {}
-        return null;
     }
 
     private long getLastCommandUsage(String username) throws IOException
@@ -256,11 +245,6 @@ public class OpenRTP extends JavaPlugin
         }
 
         return Long.parseLong(value) * multiplier;
-    }
-
-    public RTPConfig getConfig()
-    {
-        return config;
     }
 
     public void onDisable()

@@ -1,10 +1,9 @@
-package com.oldschoolminecraft.openrtp.util;
+package com.oldschoolminecraft.openrtp;
 
-import com.oldschoolminecraft.openrtp.RTPConfig;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.craftbukkit.block.CraftBlock;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -55,26 +54,27 @@ public class LocationFinder extends Thread
                 loc.clone().subtract(0, 1, 0).getBlock().getType() != Material.STATIONARY_WATER &&
                 loc.getBlock().getType() != Material.WATER &&
                 loc.getBlock().getType() != Material.STATIONARY_WATER);
-
-        System.out.println("[OpenRTP] LocationFinder created");
     }
 
     public void run()
     {
-        Location loc = getRandomizedLocation(world, range_min, range_max);
-        boolean safe;
-        while (!(safe = runSafetyChecks(loc)))
+        while (location == null)
         {
-            loc = getRandomizedLocation(world, range_min, range_max);
+            try
+            {
+                Location tmp = getRandomizedLocation(world, range_min, range_max);
+                if (runSafetyChecks(tmp))
+                {
+
+                    location = tmp.clone();
+                    location.setX(Math.round(tmp.getX()) + 0.5);
+                    location.setZ(Math.round(tmp.getZ()) + 0.5);
+                }
+            } catch (Exception ignored) {}
         }
 
-        Chunk chunk = loc.getWorld().getChunkAt(loc);
-        location.getWorld().loadChunk(chunk);
-
-        // wait to load
-        while (!chunk.isLoaded()) {}
-
-        callback.pipe(loc);
+        location.getWorld().loadChunk(location.getWorld().getChunkAt(location));
+        callback.pipe(location);
     }
 
     private boolean runSafetyChecks(Location location)
@@ -150,7 +150,7 @@ public class LocationFinder extends Thread
     private Location getRandomizedLocation(World world, double range_min, double range_max)
     {
         double magic = 0.62000000476837D;
-        return new Location(world, generateRandomDouble(range_min, range_max), 128, generateRandomDouble(range_min, range_max));
+        return new Location(world, generateRandomDouble(range_min, range_max), Math.round(70 + generateRandomDouble(0, 58)) + magic, generateRandomDouble(range_min, range_max));
     }
 
     private double generateRandomDouble(double min, double max)
