@@ -63,6 +63,9 @@ public class OpenRTP extends JavaPlugin
             long commandCooldown = timeToMillis(config.getConfigString("command_cooldown"));
             long lastUsedTime; // default
 
+            if (ply.hasPermission("openrtp.cooldown.explorer"))
+                commandCooldown /= 2; // half cooldown for explorers
+
             try
             {
                 lastUsedTime = getLastCommandUsage(ply.getName());
